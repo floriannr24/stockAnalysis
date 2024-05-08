@@ -3,17 +3,51 @@ from datetime import timedelta, date
 import yfinance as yf
 import pandas as pd
 
-THR = -0.02
+def dateAfterDays(date, days):
+    newDate = date + timedelta(days=days)
+
+    if days < 0:
+
+        # if saturday
+        if newDate.isoweekday() == 6:
+            newDate = newDate - timedelta(days=1)
+
+        # if sunday
+        if newDate.isoweekday() == 7:
+            newDate = newDate - timedelta(days=2)
+
+    if days > 0:
+
+        # if saturday
+        if newDate.isoweekday() == 6:
+            newDate = newDate - timedelta(days=2)
+
+        # if sunday
+        if newDate.isoweekday() == 7:
+            newDate = newDate - timedelta(days=1)
+
+    return newDate
 
 
-def findPE(info):
+def findTrailingPE(info):
     try:
         pe = round(info["trailingPE"], 2)
     except:
         try:
-            pe = round(abs(info["previousClose"] / info["trailingEps"]), 2)
+            pe = round(info["previousClose"] / info["trailingEps"], 2)
+            if pe < 0:
+                pe = None
         except:
             pe = None
+
+    return pe
+
+
+def findForwardPE(info):
+    try:
+        pe = round(info["forwardPE"], 2)
+    except:
+        pe = None
 
     return pe
 
@@ -34,35 +68,6 @@ def findSector(info):
     return sector
 
 
-def main_db():
-    df = pd.read_excel("C:/Users/FSX-P/Aktienanalyse/Aktien.xlsx", sheet_name="Meta")
-
-    for index, row in df.iterrows():
-
-        if not pd.isnull(df.loc[index, "marketCap"]):
-            continue
-
-        ticker = yf.Ticker(row["Code"])
-        info = ticker.info
-
-        pe = findPE(info)
-        marketCap = findMarketCap(info)
-        sector = findSector(info)
-
-        if pe:
-            df.at[index, "P/E_May"] = pe
-        if marketCap:
-            df.at[index, "marketCap"] = marketCap
-        if sector:
-            df.at[index, "sector"] = str(sector)
-
-        print(index, row["Name"], sector)
-
-    with pd.ExcelWriter("C:/Users/FSX-P/Aktienanalyse/Aktien.xlsx", engine='openpyxl', mode='a',
-                        if_sheet_exists="replace") as writer:
-        df.to_excel(writer, sheet_name='Meta', index=False)
-
-
 def getMovementAfterOpening(date, code):
     ticker = yf.Ticker(code)
     history = ticker.history(start=date, end=date + timedelta(days=1))
@@ -72,46 +77,159 @@ def getMovementAfterOpening(date, code):
         open = round(day["Open"], 2)
         lowest = round(day["Low"], 2)
         highest = round(day["High"], 2)
-        movement = round((lowest / open) - 1, 4)
+        close = round(day["Close"], 2)
 
-        text = None
+        movement_low = -round((open - lowest) / open, 4)
+        movement_high = -round((open - highest) / open, 4)
+        movement_close = -round((open - close) / open, 4)
 
-        if movement <= THR:
-            text = "runter"
-
-        if THR < movement:
-            movement = round((highest / open) - 1, 4)
-            if movement < -THR:
-                text = "keine Verä."
-            text = "hoch"
-
-        return movement, text
+        return movement_low, movement_high, movement_close
 
 
-def main2():
-    df = pd.read_excel("C:/Users/FSX-P/Aktienanalyse/Aktien.xlsx", sheet_name="ProfitForecastWelt")
+def findCountry(info):
+    try:
+        country = info["country"]
+    except:
+        country = None
+    return country
 
-    df["movementAfterOpening"] = 0
+
+def main_db(rebuild):
+    df = pd.read_excel("C:/Users/FSX-P/Aktienanalyse/Aktien.xlsx", sheet_name="Meta")
 
     for index, row in df.iterrows():
+
+        if not rebuild:
+            if not pd.isnull(df.loc[index, "sector"]):
+                continue
+
+        ticker = yf.Ticker(row["Code"])
+        info = ticker.info
+
+        sector = findSector(info)
+        country = findCountry(info)
+
+        df.at[index, "sector"] = str(sector)
+        df.at[index, "country"] = str(country)
+
+        print(index, row["Name"])
+
+    with pd.ExcelWriter("C:/Users/FSX-P/Aktienanalyse/Aktien.xlsx", engine='openpyxl', mode='a',
+                        if_sheet_exists="replace") as writer:
+        df.to_excel(writer, sheet_name='Meta', index=False)
+
+
+def getPeakOfNextDay(dateOfEC, code):
+
+    nextDay = dateAfterDays(dateOfEC, 1)
+
+    ticker = yf.Ticker(code)
+
+    try:
+        history = ticker.history(start=nextDay, end=nextDay + timedelta(days=1))
+    except:
+        return None
+
+    for i, day in history.iterrows():
+
+        open = round(day["Open"], 2)
+        lowest = round(day["Low"], 2)
+        highest = round(day["High"], 2)
+
+        return -round((open - highest) / open, 4)
+
+
+def getCloseOfNextDay(dateOfEC, code):
+
+    nextDay = dateAfterDays(dateOfEC, 1)
+
+    ticker = yf.Ticker(code)
+
+    try:
+        history = ticker.history(start=nextDay, end=nextDay + timedelta(days=1))
+    except:
+        return None
+
+    for i, day in history.iterrows():
+
+        open = round(day["Open"], 2)
+        close = round(day["Close"], 2)
+        return -round((open - close) / open, 4)
+
+
+def getChangeFromPrevCloseToOpen(dateOfEC, code):
+
+    previousDay = dateAfterDays(dateOfEC, -1)
+
+    print(dateOfEC, previousDay)
+
+    ticker = yf.Ticker(code)
+    history_dayBefore = ticker.history(start=previousDay - timedelta(days=1), end=dateOfEC)
+    history_dayOfEC = ticker.history(start=dateOfEC, end=dateOfEC + timedelta(days=1))
+
+    close = None
+    open = None
+
+    for i, day in history_dayBefore.iterrows():
+        close = round(day["Close"], 2)
+
+    for i, day in history_dayOfEC.iterrows():
+        open = round(day["Open"], 2)
+
+    if open and close:
+        return -round((close - open) / close, 4)
+    else:
+        return None
+
+
+def main_movement():
+    df = pd.read_excel("C:/Users/FSX-P/Aktienanalyse/Aktien.xlsx", sheet_name="ProfitForecastWelt")
+
+    for index, row in df.iterrows():
+
+        if not pd.isnull(df.loc[index, "nextDayClose"]):
+            continue
 
         code = row["Code"]
         dateOfEC = row["Datum"].to_pydatetime()
         afterOrBeforeOpen = row["EC vor/nach"]
 
-        if pd.isnull(afterOrBeforeOpen):
-            movement, text = getMovementAfterOpening(dateOfEC, code)
-        else:
-            movement, text = getMovementAfterOpening(dateOfEC + timedelta(days=+1), code)
+        try:
+            ticker = yf.Ticker(code)
+            info = ticker.info
+        except:
+            print(f"<< Ticker Error >>")
+            continue
 
-        df.at[index, "movementAfterOpening"] = movement
-        df.at[index, "Richtung nach Börsenöffnung"] = text
+        if pd.isnull(df.loc[index, "marketCap"]):
+            df.at[index, "P/E"] = findTrailingPE(info)
+            df.at[index, "marketCap"] = findMarketCap(info)
 
-        print(index, code, movement)
+        try:
+            if afterOrBeforeOpen == "vor":
+                movement_low, movement_high, movement_close = getMovementAfterOpening(dateOfEC, code)
+                nextDayPeak = getPeakOfNextDay(dateOfEC, code)
+                nextDayClose = getCloseOfNextDay(dateOfEC, code)
+            else:
+                movement_low, movement_high, movement_close = getMovementAfterOpening(dateOfEC + timedelta(days=1), code)
+                nextDayPeak = getPeakOfNextDay(dateOfEC + timedelta(days=1), code)
+                nextDayClose = getCloseOfNextDay(dateOfEC + timedelta(days=1), code)
+        except:
+            continue
+
+        df.at[index, "movementAfterOpening_low"] = movement_low
+        df.at[index, "movementAfterOpening_high"] = movement_high
+        df.at[index, "close"] = movement_close
+        df.at[index, "nextDayPeak"] = nextDayPeak
+        df.at[index, "nextDayClose"] = nextDayClose
+        df.at[index, "prevCloseToOpen"] = getChangeFromPrevCloseToOpen(dateOfEC, code)
+
+        print(index, code)
 
     with pd.ExcelWriter("C:/Users/FSX-P/Aktienanalyse/Aktien.xlsx", engine='openpyxl', mode='a',
                         if_sheet_exists="replace") as writer:
         df.to_excel(writer, sheet_name='ProfitForecastWelt_script', index=False)
 
 
-main2()
+# main_db(rebuild=False)
+main_movement()
