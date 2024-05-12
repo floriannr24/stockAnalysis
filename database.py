@@ -79,11 +79,16 @@ def getMovementAfterOpening(date, code):
         highest = round(day["High"], 2)
         close = round(day["Close"], 2)
 
-        movement_low = -round((open - lowest) / open, 4)
-        movement_high = -round((open - highest) / open, 4)
-        movement_close = -round((open - close) / open, 4)
+        if open != 0:
 
-        return movement_low, movement_high, movement_close
+            movement_low = -round((open - lowest) / open, 4)
+            movement_high = -round((open - highest) / open, 4)
+            movement_close = -round((open - close) / open, 4)
+
+            return movement_low, movement_high, movement_close
+
+        else:
+            raise Exception(f"{code}: Division by 0")
 
 
 def findCountry(info):
@@ -136,7 +141,7 @@ def getPeakOfNextDay(dateOfEC, code):
         lowest = round(day["Low"], 2)
         highest = round(day["High"], 2)
 
-        return -round((open - highest) / open, 4)
+        return -round((open - highest) / open, 4), -round((open - lowest) / open, 4)
 
 
 def getCloseOfNextDay(dateOfEC, code):
@@ -161,8 +166,6 @@ def getChangeFromPrevCloseToOpen(dateOfEC, code):
 
     previousDay = dateAfterDays(dateOfEC, -1)
 
-    print(dateOfEC, previousDay)
-
     ticker = yf.Ticker(code)
     history_dayBefore = ticker.history(start=previousDay - timedelta(days=1), end=dateOfEC)
     history_dayOfEC = ticker.history(start=dateOfEC, end=dateOfEC + timedelta(days=1))
@@ -182,12 +185,38 @@ def getChangeFromPrevCloseToOpen(dateOfEC, code):
         return None
 
 
+def getRunUp(days, dateOfEC, code):
+
+    startDate = dateAfterDays(dateOfEC, -days)
+    dayBeforeEC = dateAfterDays(dateOfEC, -1)
+
+    ticker = yf.Ticker(code)
+    startData = ticker.history(start=startDate, end=startDate + timedelta(days=1))
+    endData = ticker.history(start=dayBeforeEC, end=dayBeforeEC + timedelta(days=1))
+
+    startPrice = None
+    endPrice = None
+
+    for i, day in startData.iterrows():
+        startPrice = round(day["Open"], 2)
+
+    for i, day in endData.iterrows():
+        endPrice = round(day["High"], 2)
+
+    if startPrice and endPrice:
+        movement = -round((startPrice - endPrice) / startPrice, 4)
+    else:
+        movement = None
+
+    return movement
+
+
 def main_movement():
     df = pd.read_excel("C:/Users/FSX-P/Aktienanalyse/Aktien.xlsx", sheet_name="ProfitForecastWelt")
 
     for index, row in df.iterrows():
 
-        if not pd.isnull(df.loc[index, "nextDayClose"]):
+        if not pd.isnull(df.loc[index, "nextDayLow"]):
             continue
 
         code = row["Code"]
@@ -208,11 +237,11 @@ def main_movement():
         try:
             if afterOrBeforeOpen == "vor":
                 movement_low, movement_high, movement_close = getMovementAfterOpening(dateOfEC, code)
-                nextDayPeak = getPeakOfNextDay(dateOfEC, code)
+                nextDayPeak, nextDayLow = getPeakOfNextDay(dateOfEC, code)
                 nextDayClose = getCloseOfNextDay(dateOfEC, code)
             else:
                 movement_low, movement_high, movement_close = getMovementAfterOpening(dateOfEC + timedelta(days=1), code)
-                nextDayPeak = getPeakOfNextDay(dateOfEC + timedelta(days=1), code)
+                nextDayPeak, nextDayLow = getPeakOfNextDay(dateOfEC + timedelta(days=1), code)
                 nextDayClose = getCloseOfNextDay(dateOfEC + timedelta(days=1), code)
         except:
             continue
@@ -221,6 +250,7 @@ def main_movement():
         df.at[index, "movementAfterOpening_high"] = movement_high
         df.at[index, "close"] = movement_close
         df.at[index, "nextDayPeak"] = nextDayPeak
+        df.at[index, "nextDayLow"] = nextDayLow
         df.at[index, "nextDayClose"] = nextDayClose
         df.at[index, "prevCloseToOpen"] = getChangeFromPrevCloseToOpen(dateOfEC, code)
 
@@ -230,6 +260,43 @@ def main_movement():
                         if_sheet_exists="replace") as writer:
         df.to_excel(writer, sheet_name='ProfitForecastWelt_script', index=False)
 
+def main_runUp():
+    df = pd.read_excel("C:/Users/FSX-P/Aktienanalyse/Aktien.xlsx", sheet_name="RunUpWelt")
+
+    for index, row in df.iterrows():
+
+        # if not pd.isnull(df.loc[index, "marketCap"]):
+        #     continue
+
+        code = row["Code"]
+        dateOfEC = row["Datum"].to_pydatetime()
+
+        try:
+            ticker = yf.Ticker(code)
+            info = ticker.info
+        except:
+            print(f"<< Ticker Error >>")
+            continue
+
+        try:
+            shortName = info["shortName"]
+        except:
+            shortName = None
+
+        if pd.isnull(df.loc[index, "marketCap"]):
+            df.at[index, "P/E"] = findTrailingPE(info)
+            df.at[index, "marketCap"] = findMarketCap(info)
+
+        df.at[index, "runUp4Days"] = getRunUp(4, dateOfEC, code)
+        df.at[index, "Name"] = shortName
+
+        print(index, code, shortName)
+
+    with pd.ExcelWriter("C:/Users/FSX-P/Aktienanalyse/Aktien.xlsx", engine='openpyxl', mode='a',
+                        if_sheet_exists="replace") as writer:
+        df.to_excel(writer, sheet_name='RunUpWelt_script', index=False)
+
 
 # main_db(rebuild=False)
-main_movement()
+# main_movement()
+# main_runUp()
