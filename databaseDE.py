@@ -26,8 +26,14 @@ def findMarketCap(info):
 
 
 def getMovementAfterOpening(date, code):
+
     ticker = yf.Ticker(code)
     history = ticker.history(start=date, end=date + timedelta(days=1))
+
+    movement_low = 0
+    movement_high = 0
+    movement_close = 0
+    lowest = 0
 
     for i, day in history.iterrows():
 
@@ -40,10 +46,13 @@ def getMovementAfterOpening(date, code):
         movement_high = -round((open - highest) / open, 4)
         movement_close = -round((open - close) / open, 4)
 
-        return movement_low, movement_high, movement_close
+    return movement_low, movement_high, movement_close
 
 
-def dateAfterDays(date, days):
+def nextWorkdayAfterDays(date, days):
+
+    if days == 0:
+        return date
 
     newDate = date + timedelta(days=days)
 
@@ -71,27 +80,37 @@ def dateAfterDays(date, days):
 
 def getPeakOfNextDay(dateOfEC, code):
 
-    nextDay = dateAfterDays(dateOfEC, 1)
+    nextDay = nextWorkdayAfterDays(dateOfEC, 1)
 
     ticker = yf.Ticker(code)
 
     try:
-        history = ticker.history(start=nextDay, end=nextDay + timedelta(days=1))
+        history_nextDay = ticker.history(start=nextDay, end=nextDay + timedelta(days=1))
+        history_today = ticker.history(start=dateOfEC, end=nextDay)
     except:
         return None
+    
+    close_today = 0
+    open_nextDay = 0
+    lowest_nextDay = 0
+    highest_nextDay = 0
+    
+    for i, day in history_today.iterrows():
+        close_today = round(day["Close"], 2)
 
-    for i, day in history.iterrows():
+    for i, day in history_nextDay.iterrows():
 
-        open = round(day["Open"], 2)
-        lowest = round(day["Low"], 2)
-        highest = round(day["High"], 2)
+        open_nextDay = round(day["Open"], 2)
+        lowest_nextDay = round(day["Low"], 2)
+        highest_nextDay = round(day["High"], 2)
 
-        if code == "WAF.DE":
-            print(nextDay, open, lowest, highest)
+    mvtHighestNextDay = -round((open_nextDay - highest_nextDay) / open_nextDay, 4)
+    mvtLowestNextDay = -round((open_nextDay - lowest_nextDay) / open_nextDay, 4)
 
-        return -round((open - highest) / open, 4), -round((open - lowest) / open, 4)
+    if close_today != 0:
+        mvtCloseTodayToLowestNextDay = -round((close_today - lowest_nextDay) / close_today, 4)
 
-
+    return mvtHighestNextDay, mvtLowestNextDay, mvtCloseTodayToLowestNextDay
 
 
 def updateDatabase():
@@ -134,14 +153,10 @@ def downloadAnalyticsData():
         except:
             print(f"<< Ticker Error >>")
             continue
-
-        # if pd.isnull(df.loc[index, "marketCap"]):
-        #     df.at[index, "P/E"] = findTrailingPE(info)
-        #     df.at[index, "marketCap"] = findMarketCap(info)
-
+        
         try:
             movement_low, movement_high, movement_close = getMovementAfterOpening(dateOfEC, code)
-            nextDayPeak, nextDayLow = getPeakOfNextDay(dateOfEC, code)
+            nextDayPeak, nextDayLow, closeTodayLowestNextDay = getPeakOfNextDay(dateOfEC, code)
         except:
             continue
 
@@ -150,11 +165,11 @@ def downloadAnalyticsData():
         df.at[index, "close"] = movement_close
         df.at[index, "nextDayPeak"] = nextDayPeak
         df.at[index, "nextDayLow"] = nextDayLow
+        df.at[index, "closeToLowNextDay"] = closeTodayLowestNextDay
 
         print(index, code)
 
-    with pd.ExcelWriter("C:/Users/FSX-P/Aktienanalyse/Aktien.xlsx", engine='openpyxl', mode='a',
-                        if_sheet_exists="replace") as writer:
+    with pd.ExcelWriter("C:/Users/FSX-P/Aktienanalyse/Aktien.xlsx", engine='openpyxl', mode='a', if_sheet_exists="replace") as writer:
         df.to_excel(writer, sheet_name='ProfitForecastWeltDE_script', index=False)
 
 # updateDatabase()

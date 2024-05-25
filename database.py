@@ -3,7 +3,7 @@ from datetime import timedelta, date
 import yfinance as yf
 import pandas as pd
 
-def dateAfterDays(date, days):
+def nextWorkdayAfterDays(date, days):
     newDate = date + timedelta(days=days)
 
     if days < 0:
@@ -126,7 +126,7 @@ def main_db(rebuild):
 
 def getPeakOfNextDay(dateOfEC, code):
 
-    nextDay = dateAfterDays(dateOfEC, 1)
+    nextDay = nextWorkdayAfterDays(dateOfEC, 1)
 
     ticker = yf.Ticker(code)
 
@@ -146,7 +146,7 @@ def getPeakOfNextDay(dateOfEC, code):
 
 def getCloseOfNextDay(dateOfEC, code):
 
-    nextDay = dateAfterDays(dateOfEC, 1)
+    nextDay = nextWorkdayAfterDays(dateOfEC, 1)
 
     ticker = yf.Ticker(code)
 
@@ -164,7 +164,7 @@ def getCloseOfNextDay(dateOfEC, code):
 
 def getChangeFromPrevCloseToOpen(dateOfEC, code):
 
-    previousDay = dateAfterDays(dateOfEC, -1)
+    previousDay = nextWorkdayAfterDays(dateOfEC, -1)
 
     ticker = yf.Ticker(code)
     history_dayBefore = ticker.history(start=previousDay - timedelta(days=1), end=dateOfEC)
@@ -187,8 +187,8 @@ def getChangeFromPrevCloseToOpen(dateOfEC, code):
 
 def getRunUp(days, dateOfEC, code):
 
-    startDate = dateAfterDays(dateOfEC, -days)
-    dayBeforeEC = dateAfterDays(dateOfEC, -1)
+    startDate = nextWorkdayAfterDays(dateOfEC, -days)
+    dayBeforeEC = nextWorkdayAfterDays(dateOfEC, -1)
 
     ticker = yf.Ticker(code)
     startData = ticker.history(start=startDate, end=startDate + timedelta(days=1))
@@ -265,8 +265,8 @@ def main_runUp():
 
     for index, row in df.iterrows():
 
-        # if not pd.isnull(df.loc[index, "marketCap"]):
-        #     continue
+        if not pd.isnull(df.loc[index, "marketCap"]):
+            continue
 
         code = row["Code"]
         dateOfEC = row["Datum"].to_pydatetime()
@@ -298,5 +298,5 @@ def main_runUp():
 
 
 # main_db(rebuild=False)
-# main_movement()
+main_movement()
 # main_runUp()
