@@ -27,8 +27,10 @@ def findMarketCap(info):
 
 def getMovementAfterOpening(date, code):
 
+    nextWorkday = nextWorkdayAfterDays(date, 1)
+
     ticker = yf.Ticker(code)
-    history = ticker.history(start=date, end=date + timedelta(days=1))
+    history = ticker.history(start=date, end=nextWorkday)
 
     movement_low = 0
     movement_high = 0
@@ -80,13 +82,14 @@ def nextWorkdayAfterDays(date, days):
 
 def getPeakOfNextDay(dateOfEC, code):
 
-    nextDay = nextWorkdayAfterDays(dateOfEC, 1)
+    nextWorkday = nextWorkdayAfterDays(dateOfEC, 1)
+    nextWorkdayPlusOneDay = nextWorkdayAfterDays(nextWorkday, 1)
 
     ticker = yf.Ticker(code)
 
     try:
-        history_nextDay = ticker.history(start=nextDay, end=nextDay + timedelta(days=1))
-        history_today = ticker.history(start=dateOfEC, end=nextDay)
+        history_nextDay = ticker.history(start=nextWorkday, end=nextWorkdayPlusOneDay)
+        history_today = ticker.history(start=dateOfEC, end=nextWorkday)
     except:
         return None
     
@@ -141,8 +144,8 @@ def downloadAnalyticsData():
 
     for index, row in df.iterrows():
 
-        if not pd.isnull(df.loc[index, "nextDayLow"]):
-            continue
+        # if not pd.isnull(df.loc[index, "nextDayLow"]):
+        #     continue
 
         code = row["Code"]
         dateOfEC = row["Datum"].to_pydatetime()

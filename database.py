@@ -20,11 +20,11 @@ def nextWorkdayAfterDays(date, days):
 
         # if saturday
         if newDate.isoweekday() == 6:
-            newDate = newDate - timedelta(days=2)
+            newDate = newDate + timedelta(days=2)
 
         # if sunday
         if newDate.isoweekday() == 7:
-            newDate = newDate - timedelta(days=1)
+            newDate = newDate + timedelta(days=1)
 
     return newDate
 
@@ -68,9 +68,10 @@ def findSector(info):
     return sector
 
 
-def getMovementAfterOpening(date, code):
+def getMovementAfterOpening(date, nextWorkday,  code):
+
     ticker = yf.Ticker(code)
-    history = ticker.history(start=date, end=date + timedelta(days=1))
+    history = ticker.history(start=date, end=nextWorkday)
 
     for i, day in history.iterrows():
 
@@ -117,7 +118,7 @@ def main_db(rebuild):
         df.at[index, "sector"] = str(sector)
         df.at[index, "country"] = str(country)
 
-        print(index, row["Name"])
+        print("database: ", index, row["Name"])
 
     with pd.ExcelWriter("C:/Users/FSX-P/Aktienanalyse/Aktien.xlsx", engine='openpyxl', mode='a',
                         if_sheet_exists="replace") as writer:
@@ -174,9 +175,12 @@ def main_movement():
 
         try:
             if afterOrBeforeOpen == "vor":
-                movement_low, movement_high, movement_close = getMovementAfterOpening(dateOfEC, code)
+                nextWorkday = nextWorkdayAfterDays(dateOfEC, 1)
+                movement_low, movement_high, movement_close = getMovementAfterOpening(dateOfEC, nextWorkday, code)
             else:
-                movement_low, movement_high, movement_close = getMovementAfterOpening(dateOfEC + timedelta(days=1), code)
+                nextWorkday = nextWorkdayAfterDays(dateOfEC, 1)
+                nextWorkdayPlusOneDay = nextWorkdayAfterDays(nextWorkday, 1)
+                movement_low, movement_high, movement_close = getMovementAfterOpening(nextWorkday, nextWorkdayPlusOneDay, code)
         except:
             continue
 
@@ -184,7 +188,7 @@ def main_movement():
         df.at[index, "movementAfterOpening_high"] = movement_high
         df.at[index, "close"] = movement_close
 
-        print(index, code)
+        print("mvmnt: ", index, code)
 
     with pd.ExcelWriter("C:/Users/FSX-P/Aktienanalyse/Aktien.xlsx", engine='openpyxl', mode='a', if_sheet_exists="replace") as writer:
         df.to_excel(writer, sheet_name='ProfitForecastWelt_script', index=False)
@@ -226,6 +230,6 @@ def main_runUp():
         df.to_excel(writer, sheet_name='RunUpWelt_script', index=False)
 
 
-# main_db(rebuild=False)
+main_db(rebuild=False)
 main_movement()
 # main_runUp()
