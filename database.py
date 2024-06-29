@@ -149,6 +149,28 @@ def getRunUp(days, dateOfEC, code):
 
     return movement
 
+def getMovementBetweenCloseAndOpen(dateOfEC, code):
+
+    dayBeforeEC = nextWorkdayAfterDays(dateOfEC, -1)
+    dayAfterEC = nextWorkdayAfterDays(dateOfEC, 1)
+
+    ticker = yf.Ticker(code)
+    startData = ticker.history(start=dayBeforeEC, end=dateOfEC)
+    endData = ticker.history(start=dateOfEC, end=dayAfterEC)
+
+    for i, day in startData.iterrows():
+        close = round(day["Close"], 2)
+
+    for i, day in endData.iterrows():
+
+        open = round(day["Open"], 2) 
+
+    if close and open:
+        return -round((close - open) / close, 4)
+    else: 
+        pass
+
+
 
 def main_movement():
     df = pd.read_excel("C:/Users/FSX-P/Aktienanalyse/Aktien.xlsx", sheet_name="ProfitForecastWelt")
@@ -160,7 +182,7 @@ def main_movement():
 
         code = row["Code"]
         dateOfEC = row["Datum"].to_pydatetime()
-        afterOrBeforeOpen = row["EC vor/nach"]
+        timeOfAnnouncement = row["EC vor/nach"]
 
         try:
             ticker = yf.Ticker(code)
@@ -174,18 +196,26 @@ def main_movement():
             df.at[index, "marketCap"] = findMarketCap(info)
 
         try:
-            if afterOrBeforeOpen == "vor":
-                nextWorkday = nextWorkdayAfterDays(dateOfEC, 1)
-                movement_low, movement_high, movement_close = getMovementAfterOpening(dateOfEC, nextWorkday, code)
-            else:
+            if timeOfAnnouncement == "nach":
                 nextWorkday = nextWorkdayAfterDays(dateOfEC, 1)
                 nextWorkdayPlusOneDay = nextWorkdayAfterDays(nextWorkday, 1)
+                movement_low, movement_high, movement_close = getMovementAfterOpening(nextWorkday, nextWorkdayPlusOneDay, code) 
+
+            if timeOfAnnouncement == "zwischen":
+                nextWorkday = nextWorkdayAfterDays(dateOfEC, 1)
+                nextWorkdayPlusOneDay = nextWorkdayAfterDays(nextWorkday, 1)
+                movement_between = getMovementBetweenCloseAndOpen(dateOfEC, code)
                 movement_low, movement_high, movement_close = getMovementAfterOpening(nextWorkday, nextWorkdayPlusOneDay, code)
+                
+            if timeOfAnnouncement == "vor":
+                nextWorkday = nextWorkdayAfterDays(dateOfEC, 1)
+                movement_low, movement_high, movement_close = getMovementAfterOpening(dateOfEC, nextWorkday, code)
         except:
             continue
 
         df.at[index, "movementAfterOpening_low"] = movement_low
         df.at[index, "movementAfterOpening_high"] = movement_high
+        df.at[index, "movementBetweenCloseAndOpen"] = movement_between
         df.at[index, "close"] = movement_close
 
         print("mvmnt: ", index, code)
@@ -231,5 +261,5 @@ def main_runUp():
 
 
 main_db(rebuild=False)
-main_movement()
+# main_movement()
 # main_runUp()
