@@ -168,7 +168,7 @@ def getMovementBetweenCloseAndOpen(dateOfEC, code):
     if close and open:
         return -round((close - open) / close, 4)
     else: 
-        pass
+        return None
 
 
 
@@ -260,6 +260,6 @@ def main_runUp():
         df.to_excel(writer, sheet_name='RunUpWelt_script', index=False)
 
 
-main_db(rebuild=False)
-# main_movement()
+# main_db(rebuild=False)
+main_movement()
 # main_runUp()

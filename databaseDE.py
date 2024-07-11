@@ -1,5 +1,4 @@
-import datetime
-from datetime import timedelta, date
+from datetime import timedelta
 import yfinance as yf
 import pandas as pd
 
@@ -41,14 +40,17 @@ def getMovementToday(date, code):
     for i, day in history.iterrows():
 
         open = round(day["Open"], 2)
-        lowest = round(day["Low"], 2)
-        highest = round(day["High"], 2)
+        low = round(day["Low"], 2)
+        high = round(day["High"], 2)
         close = round(day["Close"], 2)
 
-        movement_low = -round((open - lowest) / open, 4)
-        movement_high = -round((open - highest) / open, 4)
+    if dataIsValid(open, low, high, close):
+        movement_low = -round((open - low) / open, 4)
+        movement_high = -round((open - high) / open, 4)
         movement_close = -round((open - close) / open, 4)
-
+    else: 
+        return None
+    
     return movement_low, movement_high, movement_close
 
 def nextWorkdayAfterDays(date, days):
@@ -99,18 +101,21 @@ def getMovementNextDay(dateOfEC, code):
     for i, day in history_nextDay.iterrows():
 
         open_nextDay = round(day["Open"], 2)
-        lowest_nextDay = round(day["Low"], 2)
-        highest_nextDay = round(day["High"], 2)
+        low_nextDay = round(day["Low"], 2)
+        high_nextDay = round(day["High"], 2)
         close_nextDay = round(day["Close"], 2)
 
-    # percentage diff from open_nextDay
-    # if 0: unplausible data
-    if open_nextDay != 0:
-        percentage_nextDay_high = -round((open_nextDay - highest_nextDay) / open_nextDay, 4)
-        percentage_nextDay_low = -round((open_nextDay - lowest_nextDay) / open_nextDay, 4)
+    if dataIsValid(open_nextDay, low_nextDay, high_nextDay, close_nextDay):
+        percentage_nextDay_high = -round((open_nextDay - high_nextDay) / open_nextDay, 4)
+        percentage_nextDay_low = -round((open_nextDay - low_nextDay) / open_nextDay, 4)
         percentage_nextDay_close = -round((open_nextDay - close_nextDay) / open_nextDay, 4)
+    else: 
+        return None
 
     return percentage_nextDay_high, percentage_nextDay_low, percentage_nextDay_close
+
+def dataIsValid(*args):
+    return not all(value == args[0] for value in args)
 
 def getWeekOfYear(dateOfEC):
     return dateOfEC.isocalendar()[1]
@@ -129,7 +134,7 @@ def getMovementNextDay_special(dateOfEC, code):
     
     close_today = 0
     open_nextDay = 0
-    lowest_nextDay = 0
+    low_nextDay = 0
     mvtCloseTodayToLowestNextDay = None
     mvtCloseTodayToOpenNextDay = None
     
@@ -139,13 +144,49 @@ def getMovementNextDay_special(dateOfEC, code):
     for i, day in history_nextDay.iterrows():
 
         open_nextDay = round(day["Open"], 2)
-        lowest_nextDay = round(day["Low"], 2)
+        low_nextDay = round(day["Low"], 2)
 
-    if close_today != 0:
-        mvtCloseTodayToLowestNextDay = -round((close_today - lowest_nextDay) / close_today, 4)
+    if dataIsValid(close_today, low_nextDay, open_nextDay):
+        mvtCloseTodayToLowestNextDay = -round((close_today - low_nextDay) / close_today, 4)
         mvtCloseTodayToOpenNextDay = -round((close_today - open_nextDay) / close_today, 4)
+    else: 
+        return None
+
 
     return mvtCloseTodayToLowestNextDay, mvtCloseTodayToOpenNextDay
+
+def getYesterdayCloseToTodayOpen(dateOfEC, code):
+
+    yesterday = nextWorkdayAfterDays(dateOfEC, -1)
+    nextWorkday = nextWorkdayAfterDays(dateOfEC, 1)
+
+    ticker = yf.Ticker(code)
+
+    try:
+        history_yesterday = ticker.history(start=yesterday, end=dateOfEC)
+    except:
+        return None
+
+    try:
+        history_today = ticker.history(start=dateOfEC, end=nextWorkday)
+    except:
+        return None
+        
+    for i, day in history_yesterday.iterrows():
+
+        close_yesterday = round(day["Close"], 2)
+
+    for i, day in history_today.iterrows():
+        
+        open_today = round(day["Open"], 2)
+
+    if dataIsValid(open_today, close_yesterday):
+        percentage_yesterdayCloseToTodayOpen = -round((close_yesterday - open_today) / close_yesterday, 4)
+    else: 
+        return None
+
+    return percentage_yesterdayCloseToTodayOpen
+
 
 def downloadAnalyticsData():
     df = pd.read_excel("C:/Users/FSX-P/Aktienanalyse/Aktien.xlsx", sheet_name="ProfitForecast DE")
@@ -157,13 +198,14 @@ def downloadAnalyticsData():
 
         code = row["Code"]
         dateOfEC = row["Datum"].to_pydatetime()
+        df.at[index, "weekOfYear"] = getWeekOfYear(dateOfEC)
+        print(index, code)
 
         try:
             low, high, close = getMovementToday(dateOfEC, code)
+            yesterdayCloseToTodayOpen = getYesterdayCloseToTodayOpen(dateOfEC, code)
             high_nextDay, low_nextDay, close_nextDay = getMovementNextDay(dateOfEC, code)
             closeTodayLowestNextDay, closeTodayOpenNextDay = getMovementNextDay_special(dateOfEC, code)
-            weekOfYear = getWeekOfYear(dateOfEC)
-            marketCap =  findMarketCap(code)
         except:
             continue
 
@@ -175,10 +217,12 @@ def downloadAnalyticsData():
         df.at[index, "close_nextDay"] = close_nextDay
         df.at[index, "closeToLowNextDay"] = closeTodayLowestNextDay
         df.at[index, "closeToOpenNextDay"] = closeTodayOpenNextDay
-        df.at[index, "weekOfYear"] = weekOfYear
-        df.at[index, "marketCap"] = marketCap
+        df.at[index, "yesterdayCloseToTodayOpen"] = yesterdayCloseToTodayOpen
+        
+        if pd.isnull(df.loc[index, "marketCap"]):
+            df.at[index, "marketCap"] = findMarketCap(code)
 
-        print(index, code)
+
 
     with pd.ExcelWriter("C:/Users/FSX-P/Aktienanalyse/Aktien.xlsx", engine='openpyxl', mode='a', if_sheet_exists="replace") as writer:
         df.to_excel(writer, sheet_name='ProfitForecastWeltDE_script', index=False)
