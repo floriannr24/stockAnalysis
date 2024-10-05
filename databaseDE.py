@@ -2,9 +2,7 @@ from datetime import timedelta
 import yfinance as yf
 import pandas as pd
 
-df = pd.read_excel("C:/Users/FSX-P/bafin/Gesamt.xlsx", sheet_name="Code")
-
-def findPE(info):
+def findPE(info): 
     try:
         pe = round(info["trailingPE"], 2)
     except:
@@ -137,6 +135,7 @@ def getMovementNextDay_special(dateOfEC, code):
     low_nextDay = 0
     mvtCloseTodayToLowestNextDay = None
     mvtCloseTodayToOpenNextDay = None
+    mvtCloseTodayToCloseNextDay = None
     
     for i, day in history_today.iterrows():
         close_today = round(day["Close"], 2)
@@ -144,16 +143,17 @@ def getMovementNextDay_special(dateOfEC, code):
     for i, day in history_nextDay.iterrows():
 
         open_nextDay = round(day["Open"], 2)
+        close_nextDay = round(day["Close"], 2)
         low_nextDay = round(day["Low"], 2)
 
     if dataIsValid(close_today, low_nextDay, open_nextDay):
         mvtCloseTodayToLowestNextDay = -round((close_today - low_nextDay) / close_today, 4)
         mvtCloseTodayToOpenNextDay = -round((close_today - open_nextDay) / close_today, 4)
+        mvtCloseTodayToCloseNextDay = -round((close_today - close_nextDay) / close_today, 4)
     else: 
         return None
 
-
-    return mvtCloseTodayToLowestNextDay, mvtCloseTodayToOpenNextDay
+    return mvtCloseTodayToLowestNextDay, mvtCloseTodayToOpenNextDay, mvtCloseTodayToCloseNextDay
 
 def getYesterdayCloseToTodayOpen(dateOfEC, code):
 
@@ -188,6 +188,10 @@ def getYesterdayCloseToTodayOpen(dateOfEC, code):
     return percentage_yesterdayCloseToTodayOpen
 
 
+def getDayOfWeek(dateOfEC):
+    return dateOfEC.isocalendar()[2]
+    
+
 def downloadAnalyticsData():
     df = pd.read_excel("C:/Users/FSX-P/Aktienanalyse/Aktien.xlsx", sheet_name="ProfitForecast DE")
 
@@ -199,13 +203,18 @@ def downloadAnalyticsData():
         code = row["Code"]
         dateOfEC = row["Datum"].to_pydatetime()
         df.at[index, "weekOfYear"] = getWeekOfYear(dateOfEC)
+        df.at[index, "dayOfWeek"] =  getDayOfWeek(dateOfEC)
+        time = row["Zeitpunkt"]
         print(index, code)
+
+        if time == "schluss":
+            dateOfEC = nextWorkdayAfterDays(dateOfEC, 1)
 
         try:
             low, high, close = getMovementToday(dateOfEC, code)
             yesterdayCloseToTodayOpen = getYesterdayCloseToTodayOpen(dateOfEC, code)
             high_nextDay, low_nextDay, close_nextDay = getMovementNextDay(dateOfEC, code)
-            closeTodayLowestNextDay, closeTodayOpenNextDay = getMovementNextDay_special(dateOfEC, code)
+            closeTodayLowestNextDay, closeTodayOpenNextDay, closeTodayCloseNextDay = getMovementNextDay_special(dateOfEC, code)
         except:
             continue
 
@@ -217,8 +226,9 @@ def downloadAnalyticsData():
         df.at[index, "close_nextDay"] = close_nextDay
         df.at[index, "closeToLowNextDay"] = closeTodayLowestNextDay
         df.at[index, "closeToOpenNextDay"] = closeTodayOpenNextDay
+        df.at[index, "closeToCloseNextDay"] = closeTodayCloseNextDay
         df.at[index, "yesterdayCloseToTodayOpen"] = yesterdayCloseToTodayOpen
-        
+    
         if pd.isnull(df.loc[index, "marketCap"]):
             df.at[index, "marketCap"] = findMarketCap(code)
 
