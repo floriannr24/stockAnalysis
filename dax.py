@@ -63,7 +63,7 @@ def downloadAnalyticsData():
     df['Datetime'] = pd.to_datetime(df["Datetime"])
 
     df_filtered = df[df["Datetime"].dt.day_of_week != 6] # remove sundays
-    df_filtered = df_filtered[(df_filtered["Datetime"].dt.hour == 8) | (df_filtered["Datetime"].dt.hour == 21)] # remove all but 8am, 9am and 10pm
+    df_filtered = df_filtered[(df_filtered["Datetime"].dt.hour == 8) | (df_filtered["Datetime"].dt.hour == 9)] # remove all but 8am, 9am and 10pm
     df_filtered = df_filtered[df_filtered["Datetime"] != "2024-03-28 08:00:00"]
     df_filtered = df_filtered.reset_index(drop=True)
 

@@ -39,8 +39,8 @@ def nextWorkdayAfterDays(date, days):
 
 def loadDataframes():
 
-    df_1h = pd.read_excel("C:/Users/FSX-P/Aktienanalyse/Indizes_src.xlsx", sheet_name="NASDAQ_future")
-    df_5m = pd.read_excel("C:/Users/FSX-P/Aktienanalyse/Indizes_src.xlsx", sheet_name="NASDAQ_future_15m")
+    df_1h = pd.read_excel("C:/Users/FSX-P/Aktienanalyse/Indizes_src.xlsx", sheet_name="SP500_future")
+    df_5m = pd.read_excel("C:/Users/FSX-P/Aktienanalyse/Indizes_src.xlsx", sheet_name="SP500_future_15m")
 
 
     df_1h['Datetime'] = pd.to_datetime(df_1h["Datetime"])
@@ -274,7 +274,6 @@ def find0900(df):
         
         df_9am.at[index, "date"] = hour["Datetime"].date()
         df_9am.at[index, "val0900"] = df_filtered.at[i, "Open"]
-        index += 1
 
     df_9am = df_9am.reset_index(drop=True)
     df_9am = df_9am.set_index("date")
@@ -412,11 +411,11 @@ def findLowBetween0800_2200(df):
     df_filtered = None
     return df_low
 
-def downloadNasdaq_1h():
+def downloadSP500_1h():
 
     print("Downloading '1h' data...")
 
-    nasdaq_future = "NQ=F"
+    nasdaq_future = "ES=F"
 
     dateToday = dt.date.today()
     dateStart = nextWorkdayAfterDays(dateToday, -720)     
@@ -429,13 +428,13 @@ def downloadNasdaq_1h():
     print("Writing to excel file...")
 
     with pd.ExcelWriter("C:/Users/FSX-P/Aktienanalyse/Indizes_src.xlsx", engine='openpyxl', mode='a', if_sheet_exists="replace") as writer:
-        tickerNoTimezone.to_excel(writer, sheet_name='nasdaq_future_data_temp', index=True)
+        tickerNoTimezone.to_excel(writer, sheet_name='sp500_future_data_temp', index=True)
 
-def downloadNasdaq_5m():
+def downloadSP500_5m():
 
     print("Downloading '5m' data...")
 
-    nasdaq_future = "NQ=F"
+    nasdaq_future = "ES=F"
 
     dateToday = dt.date.today()
     dateStart = nextWorkdayAfterDays(dateToday, -57)   
@@ -448,7 +447,7 @@ def downloadNasdaq_5m():
     print("Writing to excel file...")
 
     with pd.ExcelWriter("C:/Users/FSX-P/Aktienanalyse/Indizes_src.xlsx", engine='openpyxl', mode='a', if_sheet_exists="replace") as writer:
-        tickerNoTimezone.to_excel(writer, sheet_name='nasdaq_future_data_15m_temp', index=True)
+        tickerNoTimezone.to_excel(writer, sheet_name='sp500_future_data_15m_temp', index=True)
 
 def processFutureAnalyticsData():
         
@@ -548,9 +547,8 @@ def processFutureAnalyticsData():
         df_result.at[i, "_openTo08xx"] = -round((openEU_0 - val08xx) / openEU_0, 4)
         df_result.at[i, "_08xxToHigh"] = -round((val08xx - high_0) / val08xx, 4)
         df_result.at[i, "_08xxToCustom"] = -round((val08xx - val1400) / val08xx, 4)
-        df_result.at[i, "_0900ToHigh"] = -round((val0900 - highEU_0) / val0900, 4)
+        df_result.at[i, "_openTo0900"] = -round((openEU_0 - val0900) / openEU_0, 4)
 
-        df_result.at[i, "_t-1_closeTo0900"] = -round((close_minus1 - val0900) / close_minus1, 4)
         df_result.at[i, "_t-1_openToClose"] = -round((openEU_minus1 - close_minus1) / openEU_minus1, 4)
         df_result.at[i, "_t-1_openToHigh"] = -round((openEU_minus1 - high_minus1) / openEU_minus1, 4)
         df_result.at[i, "_t-1_openToClose"] = -round((openEU_minus1 - close_minus1) / openEU_minus1, 4)
@@ -594,6 +592,6 @@ def processFutureAnalyticsData():
         df_result.to_excel(writer, sheet_name='NASDAQ_future_script', index=False)
     
 
-downloadNasdaq_5m()
-downloadNasdaq_1h()
-# processFutureAnalyticsData()
+# downloadSP500_5m()
+# downloadSP500_1h()
+processFutureAnalyticsData()
