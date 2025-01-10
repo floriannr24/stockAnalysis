@@ -589,7 +589,7 @@ def processFutureAnalyticsData():
 
     print("Writing to Excel")
     with pd.ExcelWriter("C:/Users/FSX-P/Aktienanalyse/Indizes.xlsx", engine='openpyxl', mode='a', if_sheet_exists="replace") as writer:
-        df_result.to_excel(writer, sheet_name='NASDAQ_future_script', index=False)
+        df_result.to_excel(writer, sheet_name='SP500_future_script', index=False)
     
 
 # downloadSP500_5m()

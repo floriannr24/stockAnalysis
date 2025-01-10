@@ -39,104 +39,192 @@ def nextWorkdayAfterDays(date, days):
 
 def downloadAnalyticsData():
 
-    nasdaq_future = "NQ=F"
-    nasdaq = "^IXIC"
-    sp500 = "ES=F"
-    dax = "^GDAXI"
-
+    print("Downloading data")
     dateToday = dt.date.today()
-    dateYesterday = nextWorkdayAfterDays(dateToday, -720)
-    dateTomorrow = nextWorkdayAfterDays(dateToday, 1)     
+    dateStart = nextWorkdayAfterDays(dateToday, -300)
 
-    ticker = yf.Ticker(dax).history()
-    print(ticker)
+    ticker = yf.Ticker("^GDAXI").history(start=dateStart, end=dateToday, interval="1h")
 
     tickerNoTimezone = ticker.copy()
     tickerNoTimezone.index = tickerNoTimezone.index.strftime('%Y-%m-%d %H:%M:%S')
+    
+    print("Writing to excel file...")
+    with pd.ExcelWriter("C:/Users/FSX-P/Aktienanalyse/Indizes_src.xlsx", engine='openpyxl', mode='a', if_sheet_exists="replace") as writer:
+        tickerNoTimezone.to_excel(writer, sheet_name='DAX_917_future_data', index=True)
+    
+def loadDataframes():
 
-    with pd.ExcelWriter("C:/Users/FSX-P/Aktienanalyse/Indizes.xlsx", engine='openpyxl', mode='a', if_sheet_exists="replace") as writer:
-        tickerNoTimezone.to_excel(writer, sheet_name='DAX_data', index=True)
+    df_1h = pd.read_excel("C:/Users/FSX-P/Aktienanalyse/Indizes_src.xlsx", sheet_name="DAX_917_future_data")
 
-        
-    df = pd.read_excel("C:/Users/FSX-P/Aktienanalyse/Indizes_src.xlsx", sheet_name="NASDAQ_future_data")
+    df_1h['Datetime'] = pd.to_datetime(df_1h["Datetime"])
+    df_1h = df_1h[df_1h["Datetime"].dt.day_of_week != 6] # remove sundays
 
-    df['Datetime'] = pd.to_datetime(df["Datetime"])
+    return df_1h
 
-    df_filtered = df[df["Datetime"].dt.day_of_week != 6] # remove sundays
-    df_filtered = df_filtered[(df_filtered["Datetime"].dt.hour == 8) | (df_filtered["Datetime"].dt.hour == 9)] # remove all but 8am, 9am and 10pm
-    df_filtered = df_filtered[df_filtered["Datetime"] != "2024-03-28 08:00:00"]
+def findOpenClose(df):
+
+    print("Finding open/close for every day")
+    df_filtered = df[(df["Datetime"].dt.hour == 9) | (df["Datetime"].dt.hour == 17)]
     df_filtered = df_filtered.reset_index(drop=True)
+    df_openClose = pd.DataFrame()
 
-    df_analyze = pd.DataFrame()
+    for i, day in df_filtered.iterrows():
+
+        if i+1 > len(df_filtered)-1:
+            continue
+
+        if(day["Datetime"].hour == 17):
+            continue
+
+        df_openClose.at[i, "date"] = day["Datetime"].date()
+        df_openClose.at[i, "open"] = day["Open"]
+        df_openClose.at[i, "close"] = df_filtered.at[i+1, "Close"]
+
+    df_openClose = df_openClose.reset_index(drop=True)
+    df_openClose = df_openClose.set_index("date")
+    df_filtered = None
+
+    return df_openClose
+
+def findMaximumBetween0900_1400(df):
+
+    print("Finding maximum between 9:00 - 14:00")
+    df_filtered = df[(df["Datetime"].dt.hour >= 9) & (df["Datetime"].dt.hour <= 13)]
+    df_filtered = df_filtered.reset_index(drop=True)
+    df_highEU = pd.DataFrame();
+
+    high_day = 0
 
     for i, hour in df_filtered.iterrows():
 
-        if (hour["Datetime"].hour == 8) or (i+1 == len(df_filtered)):
+        if (i-1 < 0):
             continue
+
+        if (hour["Datetime"].date() > df_filtered.at[i-1, "Datetime"].date()):
+            df_highEU.at[i, "date"] = df_filtered.at[high_index, "Datetime"].date()
+            df_highEU.at[i, "highEU_time"] = df_filtered.at[high_index, "Datetime"].time()
+            df_highEU.at[i, "highEU"] = df_filtered.at[high_index, "High"]
+            high_day = 0
+            high_index = 0
+            high = 0
         
-        closeAt10pm = hour["Close"]
-        openAt8am = df_filtered.at[i + 1, "Open"]
-
-        changeOvernight = -round((closeAt10pm - openAt8am) / closeAt10pm, 4)
-
-        df_analyze.at[i, "datetime"] = hour["Datetime"]
-        df_analyze.at[i, "datetime_label"] = df_filtered.at[i+1, "Datetime"]
-        df_analyze.at[i, "changeOvernight "] = changeOvernight
+        high = hour["High"]
+        if high > high_day:
+            high_day = high
+            high_index = i
 
 
-    df_analyze = df_analyze.reset_index(drop=True)
-    print(df_analyze)
+    df_highEU = df_highEU.reset_index(drop=True)
+    df_highEU = df_highEU.set_index("date")
+    df_filtered = None
+    return df_highEU
 
+def findLowBetween0900_1400(df):
     
-    with pd.ExcelWriter("C:/Users/FSX-P/Aktienanalyse/Indizes.xlsx", engine='openpyxl', mode='a', if_sheet_exists="replace") as writer:
-        df_analyze.to_excel(writer, sheet_name='NASDAQ_future_script', index=False)
-    
+    print("Finding low between 9:00 - 14:00")
+    df_filtered = df[df["Datetime"].dt.day_of_week != 6] # remove sundays
+    df_filtered = df_filtered[(df_filtered["Datetime"].dt.hour >= 9) & (df_filtered["Datetime"].dt.hour <= 13)]
+    df_filtered = df_filtered.reset_index(drop=True)
+
+    df_low = pd.DataFrame()
+
+    for i, hour in df_filtered.iterrows():
+
+        if i+1 >= len(df_filtered)-1:
+            continue
+
+        if i==0:
+            low_day = hour["Low"]
+            low_index = i
+
+        low = hour["Low"]
+        if low <= low_day:
+            low_day = low
+            low_index = i
+
+        if hour["Datetime"].date() < df_filtered.at[i+1, "Datetime"].date():
+            df_low.at[i, "date"] = df_filtered.at[low_index, "Datetime"].date()
+            df_low.at[i, "lowEU_time"] = df_filtered.at[low_index, "Datetime"].time()
+            df_low.at[i, "lowEU"] = df_filtered.at[low_index, "Low"]
+            low_day = df_filtered.at[i+1, "Low"]
+            low_index = i+1
+            low = 0
+
+    df_low = df_low.reset_index(drop=True)
+    df_low = df_low.set_index("date")
+    df_filtered = None
+    return df_low
+
 def processAnalyticsData_DAX():
-        
-    df = pd.read_excel("C:/Users/FSX-P/Aktienanalyse/Indizes_src.xlsx", sheet_name="DAX")
 
-    df['Date'] = pd.to_datetime(df["Date"])
+    df_1h = loadDataframes()
 
-    df_analyze = pd.DataFrame()
+    df_openClose = findOpenClose(df_1h)
+    df_high9am2pm = findMaximumBetween0900_1400(df_1h)
+    df_low9am2pm = findLowBetween0900_1400(df_1h)
 
-    for i, day in df.iterrows():
+    # join all dataframes
+    print("Joining dataframes")
+    df_joined = df_openClose
+    df_joined = df_joined.join(df_high9am2pm)
+    df_joined = df_joined.join(df_low9am2pm)
 
-        if (i+2) > len(df):
+    df_joined = df_joined.reset_index()
+
+
+
+
+    # final sheet
+    print("Final sheet")
+    df_result = pd.DataFrame()
+
+    for i, day in df_joined.iterrows():
+
+        if i+1 > len(df_joined)-1 or i-2 < 0:
             continue
-        
-        open = day["Open"]
-        high = day["High"]
-        low = day["Low"]
-        close = day["Close"]
-        openNextDay = df.at[i+1, "Open"]
-        maxNextDay = df.at[i+1, "High"]
-        closeNextDay = df.at[i+1 , "Close"]
-        lowNextDay = df.at[i+1, "Low"]
 
-        openNextDayToHighNextDay = -round((openNextDay - maxNextDay) / openNextDay, 4)
-        openNextDayToLowNextDay = -round((openNextDay - lowNextDay) / openNextDay, 4)
-        openToClose = -round((open - close) / open, 4)
-        closeToOpenNextDay = -round((close - openNextDay) / close, 4)
-        closeToMaxNextDay = -round((close - maxNextDay) / close, 4)
-        openNextDayToCloseNextDay = -round((openNextDay - closeNextDay) / openNextDay, 4)
+        open_0 = day["open"] 
+        close_0 = day["close"]   
+        highEU_0 = day["highEU"]
+        lowEU_0 = day["lowEU"]
 
-        df_analyze.at[i, "date"] = day["Date"]
-        df_analyze.at[i, "open"] = open
-        df_analyze.at[i, "high"] = high
-        df_analyze.at[i, "low"] = low
-        df_analyze.at[i, "close"] = close
-        df_analyze.at[i, "openToClose"] = openToClose
-        df_analyze.at[i, "openNextDayToHighNextDay"] = openNextDayToHighNextDay
-        df_analyze.at[i, "openNextDayToCloseNextDay"] = openNextDayToCloseNextDay
-        df_analyze.at[i, "openNextDayToLowNextDay"] = openNextDayToLowNextDay
-        df_analyze.at[i, "closeToOpenNextDay"] = closeToOpenNextDay
-        df_analyze.at[i, "closeToMaxNextDay"] = closeToMaxNextDay
-        df_analyze.at[i, "dayOfWeek"] = day["Date"].isocalendar()[2]
 
-    print(df_analyze)
+        open_plus1 = df_joined.at[i+1, "open"]
+        close_plus1 = df_joined.at[i+1, "close"]
+        highEU_plus1 = df_joined.at[i+1, "highEU"]
+        lowEU_plus1 = df_joined.at[i+1, "lowEU"]
 
+        close_minus1 = df_joined.at[i-1, "close"]
+        open_minus1 = df_joined.at[i-1, "open"]
+
+        close_minus2 = df_joined.at[i-2, "close"]
+
+
+
+        df_result.at[i, "date"] = day["date"]
+        df_result.at[i, "_openToHighEU"] = -round((open_0 - highEU_0) / open_0, 4)
+        df_result.at[i, "_openToLowEU"] = -round((open_0 - lowEU_0) / open_0, 4)
+        df_result.at[i, "_openToClose"] = -round((open_0 - close_0) / open_0, 4)
+        df_result.at[i, "_closeToOpen"] = -round((close_0 - open_plus1) / close_0, 4)
+        df_result.at[i, "_closeToHighEU"] = -round((close_0 - highEU_plus1) / close_0, 4)
+
+
+        df_result.at[i, "_t+1_openToHighEU"] = -round((open_plus1 - highEU_plus1) / open_plus1, 4)
+        df_result.at[i, "_t+1_openToLowEU"] = -round((open_plus1 - lowEU_plus1) / open_plus1, 4)
+        df_result.at[i, "_t+1_openToClose"] = -round((open_plus1 - close_plus1) / open_plus1, 4)
+        df_result.at[i, "_t-1_closeToOpen"] = -round((close_minus1 - open_0) / close_minus1, 4)
+        df_result.at[i, "_t-1_closeToHighEU"] = -round((close_minus1 - highEU_0) / close_minus1, 4)
+        df_result.at[i, "_t-1_openToClose"] = -round((open_minus1 - close_minus1) / open_minus1, 4)
+        df_result.at[i, "_t-2_closeToClose"] = -round((close_minus2 - close_minus1) / close_minus2, 4)
+
+        df_result.at[i, "dayOfWeek"] = day["date"].isocalendar()[2]
+
+
+
+
+    print("Writing to excel file...")
     with pd.ExcelWriter("C:/Users/FSX-P/Aktienanalyse/Indizes.xlsx", engine='openpyxl', mode='a', if_sheet_exists="replace") as writer:
-        df_analyze.to_excel(writer, sheet_name='DAX_script', index=False)
+        df_result.to_excel(writer, sheet_name='DAX_917_future_script', index=False)
 
 # downloadAnalyticsData()
-# processAnalyticsData_DAX()
+processAnalyticsData_DAX()

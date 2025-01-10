@@ -55,7 +55,7 @@ def loadDataframes():
 
 def findMaximumBetween0800_2200(df):
 
-    print("Finding maximum between 8:xx - 21:59")
+    print("Finding maximum between 8:00 - 22:00")
     df_filtered = df[(df["Datetime"].dt.hour >= 2) & (df["Datetime"].dt.hour <= 15)] # only 2am (8:00) - 4pm (21:59)
     df_filtered = df_filtered.reset_index(drop=True)
     df_highFull = pd.DataFrame()
@@ -90,7 +90,7 @@ def findMaximumBetween0800_2200(df):
 
 def findMaximumBetween0800_1400(df):
 
-    print("Finding maximum between 8:xx - 13:xx")
+    print("Finding maximum between 8:00 - 14:00")
     df_filtered = df[(df["Datetime"].dt.hour >= 2) & (df["Datetime"].dt.hour <= 7)] # only 2am (8:xx) - 7am (13:xx)
     df_filtered = df_filtered.reset_index(drop=True)
     df_highEU = pd.DataFrame();
@@ -156,11 +156,12 @@ def findMaximumBetween1000_2200(df):
 def findMaximumBetween1000_1400(df):
 
     print("Finding maximum between 10:00 - 14:00")
-    df_filtered = df[(df["Datetime"].dt.hour >= 4) & (df["Datetime"].dt.hour <= 7)]
+    df_filtered = df[(df["Datetime"].dt.hour >= 4) & (df["Datetime"].dt.hour < 8)]
     df_filtered = df_filtered.reset_index(drop=True)
     df_max10To2pm = pd.DataFrame();
 
     high_day = 0
+    high_index = 0
 
     for i, hour in df_filtered.iterrows():
 
@@ -191,6 +192,8 @@ def findOpenClose(df):
     df_filtered = df[(df["Datetime"].dt.hour == 2) | (df["Datetime"].dt.hour == 15)] # remove all but 2am (8:00) and 3pm (21:59)
     df_filtered = df_filtered.reset_index(drop=True)
     df_openClose = pd.DataFrame()
+
+    print(df_filtered)
 
     for i, day in df_filtered.iterrows():
 
@@ -239,7 +242,7 @@ def findSpecificValues(df):
 def find1000And1400(df):
 
     print("Finding 10:00 / 14:00")
-    df_filtered = df[(df["Datetime"].dt.hour == 4) | (df["Datetime"].dt.hour == 8)]
+    df_filtered = df[(df["Datetime"].dt.hour == 3) | (df["Datetime"].dt.hour == 8)]
     df_filtered = df_filtered.reset_index(drop=True)
     df_11am2pm = pd.DataFrame()
 
@@ -250,11 +253,12 @@ def find1000And1400(df):
         if hour["Datetime"].hour == 8:
             index = index + 1
             continue
-        
+
         df_11am2pm.at[index, "date"] = hour["Datetime"].date()
         df_11am2pm.at[index, "val1000"] = df_filtered.at[i, "Open"]
+        df_11am2pm.at[index, "valCustom"] = df_filtered.at[i, "Open"]
         df_11am2pm.at[index, "val1400"] = df_filtered.at[i+1, "Open"]
-        df_11am2pm.at[index, "valCustom"] = df_filtered.at[i+1, "Close"]
+
 
     df_11am2pm = df_11am2pm.reset_index(drop=True)
     df_11am2pm = df_11am2pm.set_index("date")
@@ -341,7 +345,7 @@ def findMaximumBetween08xx_0959(df, minutesIn8xx, minutesIn9xx):
 
 def findLowBetween0800_1400(df):
 
-    print("Find low between 8:00 - 14:00")
+    print("Finding low between 8:00 - 14:00")
     df_filtered = df[df["Datetime"].dt.day_of_week != 6] # remove sundays
     df_filtered = df_filtered[(df_filtered["Datetime"].dt.hour >= 2) & (df_filtered["Datetime"].dt.hour <= 7)]
     df_filtered = df_filtered[df_filtered["Datetime"] != "2024-03-28 08:00:00"]
@@ -378,7 +382,7 @@ def findLowBetween0800_1400(df):
 
 def findLowBetween0800_2200(df):
 
-    print("Find low between 8:00 - 22:00")
+    print("Finding low between 8:00 - 22:00")
     df_filtered = df[df["Datetime"].dt.day_of_week != 6] # remove sundays
     df_filtered = df_filtered[(df_filtered["Datetime"].dt.hour >= 2) & (df_filtered["Datetime"].dt.hour <= 15)]
     df_filtered = df_filtered[df_filtered["Datetime"] != "2024-03-28 08:00:00"]
@@ -419,7 +423,7 @@ def downloadNasdaq_1h():
     nasdaq_future = "NQ=F"
 
     dateToday = dt.date.today()
-    dateStart = nextWorkdayAfterDays(dateToday, -720)     
+    dateStart = nextWorkdayAfterDays(dateToday, -300)     
 
     ticker = yf.Ticker(nasdaq_future).history(start=dateStart, end=dateToday, interval="1h")
 
@@ -450,6 +454,126 @@ def downloadNasdaq_5m():
     with pd.ExcelWriter("C:/Users/FSX-P/Aktienanalyse/Indizes_src.xlsx", engine='openpyxl', mode='a', if_sheet_exists="replace") as writer:
         tickerNoTimezone.to_excel(writer, sheet_name='nasdaq_future_data_15m_temp', index=True)
 
+def findPositiveStreak(df):
+
+    print("Finding positive streak")
+
+    streak = 1
+
+    for i, day in df.iterrows():
+
+        if i == 0:
+            continue
+
+        if day["close"] > df.at[i-1, "close"]:
+            df.at[i, "ctc_positiveRun"] = streak
+            streak = streak + 1
+        else: streak = 1
+
+    return df
+
+def findNegativeStreak(df):
+
+    print("Finding negative streak")
+
+    streak = 1
+
+    for i, day in df.iterrows():
+
+        if i == 0:
+            continue
+
+        if day["close"] < df.at[i-1, "close"]:
+            df.at[i, "ctc_negativeRun"] = streak
+            streak = streak + 1
+        else: streak = 1
+
+    return df
+
+def findMondayToFridayPerformance(df):
+
+    print("Finding Mon - Fri performance")
+
+    df_monFri = df[(df["Datetime"].dt.day_of_week == 0) & (df["Datetime"].dt.hour == 2) | 
+                    (df["Datetime"].dt.day_of_week == 4) & (df["Datetime"].dt.hour == 15)]
+
+    df_monFri = df_monFri.reset_index(drop=True)
+    df_monFriPerf = pd.DataFrame()
+
+    # monFri performance
+    for i, day in df_monFri.iterrows():
+
+        mon = None
+        fri = None
+
+        if day["Datetime"].day_of_week == 4 or i+1 >= len(df_monFri):
+            continue
+
+        mon = day
+
+        if df_monFri.at[i+1, "Datetime"].day_of_week == 4:
+            fri = df_monFri.iloc[i+1]
+        else: 
+            continue
+
+        if not mon.empty and not fri.empty:
+
+            openMon = mon["Open"]
+            closeFri = fri["Close"]
+
+            monFriPerf = -round((openMon - closeFri) / openMon, 4)
+
+            df_monFriPerf.at[i, "date"] = mon["Datetime"].date()
+            df_monFriPerf.at[i, "monFriPerf"] = monFriPerf
+
+    # high in week
+    # df_filtered = df[(df["Datetime"].dt.hour >= 2) & (df["Datetime"].dt.hour <= 15)]
+    # df_filtered = df_filtered.reset_index(drop=True)
+    # df_highWeek = pd.DataFrame();
+
+    # high_day = 0
+
+    # for i, hour in df_filtered.iterrows():
+
+    #     if (i-1 < 0):
+    #         continue
+
+    #     mon = None
+    #     fri = None
+
+    #     if day["Datetime"].day_of_week == 4 or i+1 >= len(df_monFri):
+    #         continue
+
+    #     mon = day
+
+    #     if df_monFri.at[i+1, "Datetime"].day_of_week == 4:
+    #         fri = df_monFri.iloc[i+1]
+    #     else: 
+    #         continue
+
+    #     if not mon.empty and not fri.empty:
+
+        
+
+    #     if (hour["Datetime"].date() > df_filtered.at[i-1, "Datetime"].date()):
+    #         df_highEU.at[i, "date"] = df_filtered.at[high_index, "Datetime"].date()
+    #         df_highEU.at[i, "high_time"] = df_filtered.at[high_index, "Datetime"].time()
+    #         df_highEU.at[i, "high"] = df_filtered.at[high_index, "High"]
+    #         high_day = 0
+    #         high_index = 0
+    #         high = 0
+        
+    #     high = hour["High"]
+    #     if high > high_day:
+    #         high_day = high
+    #         high_index = i
+
+
+    df_monFriPerf = df_monFriPerf.reset_index(drop=True)
+    df_monFriPerf = df_monFriPerf.set_index("date")
+
+    return df_monFriPerf
+    
 def processFutureAnalyticsData():
         
     df_1h, df_5m = loadDataframes()
@@ -465,6 +589,7 @@ def processFutureAnalyticsData():
     df_9am = find0900(df_1h)
     df_8am9am = find08xxAnd09xx(df_5m, 30, 55)
     df_high9am = findMaximumBetween08xx_0959(df_5m, 35, 55)
+    df_monFriPerf = findMondayToFridayPerformance(df_1h)
 
 
 
@@ -481,11 +606,12 @@ def processFutureAnalyticsData():
     df_joined = df_joined.join(df_9am)
     df_joined = df_joined.join(df_8am9am, how="left")
     df_joined = df_joined.join(df_high9am, how="left")
+    df_joined = df_joined.join(df_monFriPerf, how="left")
 
     df_joined = df_joined.reset_index()
 
-
-
+    df_joined = findPositiveStreak(df_joined)
+    df_joined = findNegativeStreak(df_joined)
 
     # final sheet
     print("Final sheet")
@@ -508,6 +634,7 @@ def processFutureAnalyticsData():
         val10amTo10pmHigh = day["val10amTo10pmHigh"]
         val10amTo2pmHigh = day["val10amTo2pmHigh"]
         val0900 = day["val0900"]
+        valCustom = day["valCustom"]
 
         openEU_plus1 = df_joined.at[i+1, "open"]
         highEU_plus1 = df_joined.at[i+1, "high"]
@@ -523,6 +650,9 @@ def processFutureAnalyticsData():
         low_0 = day["low_full"]
 
         high_minus1 = df_joined.at[i-1, "high_full"]
+        high_plus1 = df_joined.at[i+1, "high_full"]
+
+        close_plus1 = df_joined.at[i+1, "close"]
 
         close_minus1 = df_joined.at[i-1, "close"]
         close_minus2 = df_joined.at[i-2, "close"]
@@ -533,23 +663,34 @@ def processFutureAnalyticsData():
         _2100high = day["2100high"]
         _2100low = day["2100low"]
         percentBuffer = 0.0
+        _monFriPerf = day["monFriPerf"]
+
 
 
         df_result.at[i, "date"] = day["date"]
         df_result.at[i, "_openToClose"] = -round((openEU_0 - close_0) / openEU_0, 4)
         df_result.at[i, "_openToHighEU"] = -round((openEU_0 - highEU_0) / openEU_0, 4)
-        df_result.at[i, "_openToHigh_nasdaq"] = -round((openEU_0 - high_0) / openEU_0, 4)
+        df_result.at[i, "_highTime"] = day["high_time_full"]
+        df_result.at[i, "_openToHigh"] = -round((openEU_0 - high_0) / openEU_0, 4)
         df_result.at[i, "_1000To2pm"] = -round((val1000 - val1400) / val1000, 4)
         df_result.at[i, "_1000ToHigh"] = -round((val1000 - val10amTo10pmHigh) / val1000, 4)
         df_result.at[i, "_openTo10am"] = -round((openEU_0 - val1000) / openEU_0, 4)
-        df_result.at[i, "_openNextDayToHighNextDay"] = -round((openEU_plus1 - highEU_plus1) / openEU_plus1, 4)
+        df_result.at[i, "_openNextDayToHighNextDay"] = -round((openEU_plus1 - high_plus1) / openEU_plus1, 4)
+        df_result.at[i, "_openNextDayToCloseNextDay"] = -round((openEU_plus1 - close_plus1) / openEU_plus1, 4)
+        df_result.at[i, "_closeToCloseNextDay"] = -round((close_0 - close_plus1) / close_0, 4)
         df_result.at[i, "_closeToCloseToday"] = -round((close_minus1 - close_0) / close_minus1, 4)
-        df_result.at[i, "_openToCustom"] = -round((openEU_0 - val1400) / openEU_0, 4)
         df_result.at[i, "_openTo08xx"] = -round((openEU_0 - val08xx) / openEU_0, 4)
         df_result.at[i, "_08xxToHigh"] = -round((val08xx - high_0) / val08xx, 4)
         df_result.at[i, "_08xxToCustom"] = -round((val08xx - val1400) / val08xx, 4)
         df_result.at[i, "_0900ToHigh"] = -round((val0900 - highEU_0) / val0900, 4)
+        df_result.at[i, "_openToCustom"] = -round((openEU_0 - val0900) / openEU_0, 4)
+        df_result.at[i, "_customToCustom"] = -round((close_minus1 - openEU_0) / close_minus1, 4)
+        df_result.at[i, "_customToHigh"] = -round((val0900 - highEU_0) / val0900, 4)
+        df_result.at[i, "ctc_positiveRun"] = day["ctc_positiveRun"]
+        df_result.at[i, "ctc_negativeRun"] = day["ctc_negativeRun"]
 
+        df_result.at[i, "_t-1_ctc_positiveRun"] = df_joined.at[i-1, "ctc_positiveRun"]
+        df_result.at[i, "_t-1_ctc_negativeRun"] = df_joined.at[i-1, "ctc_negativeRun"]
         df_result.at[i, "_t-1_closeTo0900"] = -round((close_minus1 - val0900) / close_minus1, 4)
         df_result.at[i, "_t-1_openToClose"] = -round((openEU_minus1 - close_minus1) / openEU_minus1, 4)
         df_result.at[i, "_t-1_openToHigh"] = -round((openEU_minus1 - high_minus1) / openEU_minus1, 4)
@@ -559,14 +700,17 @@ def processFutureAnalyticsData():
         df_result.at[i, "_t-1_closeToOpen"] = -round((close_minus1 - openEU_0) / close_minus1, 4)
         df_result.at[i, "_t-1_closeToHigh"] = -round((close_minus1 - high_0) / close_minus1, 4)
         df_result.at[i, "_t-1_closeToClose"] = -round((close_minus1 - close_0) / close_minus1, 4)
+        df_result.at[i, "_t-1_closeToCustom"] = -round((close_minus1 - valCustom) / close_minus1, 4)
+        df_result.at[i, "_monFriPerf"] = _monFriPerf
 
         df_result.at[i, "_openToLowEU"] = -round((openEU_0 - lowEU_0) / openEU_0, 4)
         df_result.at[i, "_openToLow"] = -round((openEU_0 - low_0) / openEU_0, 4)
         df_result.at[i, "_t-2_openToClose"] = -round((openEU_minus2 - close_minus2) / openEU_minus2, 4)
         df_result.at[i, "_t-3_openToClose"] = -round((high_minus1 - close_minus3) / high_minus1, 4)
         df_result.at[i, "_t-2_closeToClose"] = -round((close_minus2 - close_minus1) / close_minus2, 4)
+        df_result.at[i, "_t-2_closeToOpen"] = -round((close_minus2 - openEU_0) / close_minus2, 4)
         df_result.at[i, "_closeToOpenNextDay"] = -round((close_0 - openEU_plus1) / close_0, 4)
-        df_result.at[i, "_closeToMaxNextDay"] = -round((close_0 - highEU_plus1) / close_0, 4)
+        df_result.at[i, "_closeToMaxNextDay"] = -round((close_0 - high_plus1) / close_0, 4)
         df_result.at[i, "_nextDayOpenToNextDay1359"] = -round((openEU_plus1 - val1400_plus1) / openEU_plus1, 4)
         df_result.at[i, "_21ToHigh"] = -round((_2100open - _2100high) / _2100open, 4)
         df_result.at[i, "_21ToClose"] = -round((_2100open - close_0) / _2100open, 4)
@@ -594,6 +738,6 @@ def processFutureAnalyticsData():
         df_result.to_excel(writer, sheet_name='NASDAQ_future_script', index=False)
     
 
-downloadNasdaq_5m()
-downloadNasdaq_1h()
-# processFutureAnalyticsData()
+# downloadNasdaq_5m()
+# downloadNasdaq_1h()
+processFutureAnalyticsData()
