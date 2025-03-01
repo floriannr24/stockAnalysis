@@ -41,23 +41,22 @@ def nextWorkdayAfterDays(date, days):
     return newDate
 
 def loadDataframes():
-    print("Loading dataframes")
+    print("[Loading dataframes]")
 
-    df_1h = pd.read_excel("C:/Users/FSX-P/Aktienanalyse/Indizes_src.xlsx", sheet_name="NASDAQ_future")
-    df_5m = pd.read_excel("C:/Users/FSX-P/Aktienanalyse/Indizes_src.xlsx", sheet_name="NASDAQ_future_15m")
     holidays_datetime = [dt.datetime.strptime(date, '%Y-%m-%d') for date in holidaysUSA]
 
+    # df_5m['Datetime'] = pd.to_datetime(df_5m["Datetime"])
+    # df_5m = df_5m[df_5m["Datetime"] != "2024-03-28 08:00:00"]
+    # df_5m = df_5m[~df_5m['Datetime'].dt.date.isin([holiday.date() for holiday in holidays_datetime])]
+    # df_5m = df_5m[df_5m["Datetime"].dt.day_of_week != 6] # remove sundays
+
+    df_1h = pd.read_csv('C:/Users/FSX-P/Aktienanalyse/pay/nasdaq/nq_1h_src.csv', delimiter=',')
     df_1h['Datetime'] = pd.to_datetime(df_1h["Datetime"])
-    df_1h = df_1h[df_1h["Datetime"] != "2024-03-28 08:00:00"]
+
     df_1h = df_1h[~df_1h['Datetime'].dt.date.isin([holiday.date() for holiday in holidays_datetime])]
     df_1h = df_1h[df_1h["Datetime"].dt.day_of_week != 6] # remove sundays
 
-    df_5m['Datetime'] = pd.to_datetime(df_5m["Datetime"])
-    df_5m = df_5m[df_5m["Datetime"] != "2024-03-28 08:00:00"]
-    df_5m = df_5m[~df_5m['Datetime'].dt.date.isin([holiday.date() for holiday in holidays_datetime])]
-    df_5m = df_5m[df_5m["Datetime"].dt.day_of_week != 6] # remove sundays
-
-    return df_1h, df_5m
+    return df_1h, None
 
 def findMaximumBetween0800_2200(df):
 
@@ -128,7 +127,7 @@ def findMaximumBetween1000_2200(df):
     print("Finding maximum between 10:00 - 22:00")
     df_filtered = df[(df["Datetime"].dt.hour >= 4) & (df["Datetime"].dt.hour <= 15)]
     df_filtered = df_filtered.reset_index(drop=True)
-    df_max10To10pm = pd.DataFrame()
+    df_max1000To2200 = pd.DataFrame()
 
     high_day = 0
     high_index = 0
@@ -139,8 +138,8 @@ def findMaximumBetween1000_2200(df):
             continue
 
         if (hour["Datetime"].date() > df_filtered.at[i-1, "Datetime"].date()):
-            df_max10To10pm.at[i, "date"] = df_filtered.at[high_index, "Datetime"].date()
-            df_max10To10pm.at[i, "val10amTo10pmHigh"] = df_filtered.at[high_index, "High"]
+            df_max1000To2200.at[i, "date"] = df_filtered.at[high_index, "Datetime"].date()
+            df_max1000To2200.at[i, "val1000To2200High"] = df_filtered.at[high_index, "High"]
             high_day = 0
             high_index = 0
             high = 0
@@ -151,16 +150,16 @@ def findMaximumBetween1000_2200(df):
             high_index = i
 
 
-    df_max10To10pm = df_max10To10pm.reset_index(drop=True)
-    df_max10To10pm = df_max10To10pm.set_index("date")
-    return df_max10To10pm
+    df_max1000To2200 = df_max1000To2200.reset_index(drop=True)
+    df_max1000To2200 = df_max1000To2200.set_index("date")
+    return df_max1000To2200
 
-def findMaximumBetween1000_1400(df):
+def findMaximumBetween1500_2200(df):
 
-    print("Finding maximum between 10:00 - 14:00")
-    df_filtered = df[(df["Datetime"].dt.hour >= 4) & (df["Datetime"].dt.hour < 8)]
+    print("Finding maximum between 15:00 - 22:00")
+    df_filtered = df[(df["Datetime"].dt.hour >= 9) & (df["Datetime"].dt.hour <= 15)]
     df_filtered = df_filtered.reset_index(drop=True)
-    df_max10To2pm = pd.DataFrame()
+    df_max1500To2200 = pd.DataFrame()
 
     high_day = 0
     high_index = 0
@@ -171,8 +170,8 @@ def findMaximumBetween1000_1400(df):
             continue
 
         if (hour["Datetime"].date() > df_filtered.at[i-1, "Datetime"].date()):
-            df_max10To2pm.at[i, "date"] = df_filtered.at[high_index, "Datetime"].date()
-            df_max10To2pm.at[i, "val10amTo2pmHigh"] = df_filtered.at[high_index, "High"]
+            df_max1500To2200.at[i, "date"] = df_filtered.at[high_index, "Datetime"].date()
+            df_max1500To2200.at[i, "val1500To2200High"] = df_filtered.at[high_index, "High"]
             high_day = 0
             high_index = 0
 
@@ -182,9 +181,9 @@ def findMaximumBetween1000_1400(df):
             high_index = i
 
 
-    df_max10To2pm = df_max10To2pm.reset_index(drop=True)
-    df_max10To2pm = df_max10To2pm.set_index("date")
-    return df_max10To2pm
+    df_max1500To2200 = df_max1500To2200.reset_index(drop=True)
+    df_max1500To2200 = df_max1500To2200.set_index("date")
+    return df_max1500To2200
 
 def findOpenClose(df):
 
@@ -437,17 +436,16 @@ def downloadNasdaq_1h():
     nasdaq_future = "NQ=F"
 
     dateToday = dt.date.today()
-    dateStart = nextWorkdayAfterDays(dateToday, -300)     
+    dateStart = nextWorkdayAfterDays(dateToday, -300)
 
     ticker = yf.Ticker(nasdaq_future).history(start=dateStart, end=dateToday, interval="1h")
 
     tickerNoTimezone = ticker.copy()
     tickerNoTimezone.index = tickerNoTimezone.index.strftime('%Y-%m-%d %H:%M:%S')
+    df = tickerNoTimezone[["Open", "High", "Low", "Close", "Volume"]]
 
-    print("Writing to excel file...")
-
-    with pd.ExcelWriter("C:/Users/FSX-P/Aktienanalyse/Indizes_src.xlsx", engine='openpyxl', mode='a', if_sheet_exists="replace") as writer:
-        tickerNoTimezone.to_excel(writer, sheet_name='nasdaq_future_data_temp', index=True)
+    print("Writing to .csv file...")
+    df.to_csv('C:/Users/FSX-P/Aktienanalyse/pay/nasdaq/nq_1h_temp.csv', index=True)
 
 def downloadNasdaq_5m():
 
@@ -456,7 +454,8 @@ def downloadNasdaq_5m():
     nasdaq_future = "NQ=F"
 
     dateToday = dt.date.today()
-    dateStart = nextWorkdayAfterDays(dateToday, -57)   
+    dateStart = nextWorkdayAfterDays(dateToday, -57)
+    dateEnd = nextWorkdayAfterDays(dateToday, -10)
 
     ticker = yf.Ticker(nasdaq_future).history(start=dateStart, end=dateToday, interval="5m")
 
@@ -504,11 +503,11 @@ def findNegativeStreak(df):
 
     return df
 
-def greaterEqual(val1, val2):
-    if not val1 or not val2 or np.isnan(val1) or np.isnan(val2):
+def greaterEqual(high, valToReach):
+    if not high or not valToReach or np.isnan(high) or np.isnan(valToReach):
         return None
     else:
-        return "yes" if val1 >= val2 else "no"
+        return "yes" if high >= valToReach else "no"
 
 def findMondayToFridayPerformance(df):
 
@@ -603,13 +602,13 @@ def processFutureAnalyticsData():
     df_highEU = findMaximumBetween0800_1400(df_1h)
     df_lowFull = findLowBetween0800_2200(df_1h)
     df_lowEU = findLowBetween0800_1400(df_1h)
-    df_10To10pmHigh = findMaximumBetween1000_2200(df_1h)
-    df_10To2pmHigh = findMaximumBetween1000_1400(df_1h)
+    df_10To22High = findMaximumBetween1000_2200(df_1h)
+    df_15To22High = findMaximumBetween1500_2200(df_1h)
     df_10am2pm = find1000And1400(df_1h)
     df_9am = find0900(df_1h)
     df_3pm = find1500(df_1h)
-    df_8am9am = find08xxAnd09xx(df_5m, 30, 55)
-    df_high9am = findMaximumBetween08xx_0959(df_5m, 35, 55)
+    # df_8am9am = find08xxAnd09xx(df_5m, 30, 55)
+    # df_high9am = findMaximumBetween08xx_0959(df_5m, 35, 55)
     df_monFriPerf = findMondayToFridayPerformance(df_1h)
 
 
@@ -620,14 +619,14 @@ def processFutureAnalyticsData():
 
     df_joined = df_highEU.join(df_joined)
     df_joined = df_joined.join(df_10am2pm)
-    df_joined = df_joined.join(df_10To10pmHigh)
-    df_joined = df_joined.join(df_10To2pmHigh)
+    df_joined = df_joined.join(df_10To22High)
+    df_joined = df_joined.join(df_15To22High)
     df_joined = df_joined.join(df_lowEU)
     df_joined = df_joined.join(df_lowFull)
     df_joined = df_joined.join(df_9am)
     df_joined = df_joined.join(df_3pm)
-    df_joined = df_joined.join(df_8am9am, how="left")
-    df_joined = df_joined.join(df_high9am, how="left")
+    # df_joined = df_joined.join(df_8am9am, how="left")
+    # df_joined = df_joined.join(df_high9am, how="left")
     df_joined = df_joined.join(df_monFriPerf, how="left")
 
     df_joined = df_joined.reset_index()
@@ -650,11 +649,14 @@ def processFutureAnalyticsData():
         lowEU_0 = day["low"]
         val1000 = day["val1000"]
         val1400 = day["val1400"]
-        val08xx = day["val08xx"]
-        val09xx = day["val09xx"]
-        val08xx09xxHigh = day["val08xx09xxHigh"]
-        val10amTo10pmHigh = day["val10amTo10pmHigh"]
-        val10amTo2pmHigh = day["val10amTo2pmHigh"]
+        # val08xx = day["val08xx"]
+        # val09xx = day["val09xx"]
+        val08xx = 1
+        val09xx = 1
+        # val08xx09xxHigh = day["val08xx09xxHigh"]
+        val08xx09xxHigh = 1
+        val1000To2200High = day["val1000To2200High"]
+        val1500To2200High = day["val1500To2200High"]
         val0900 = day["val0900"]
         valCustom = day["valCustom"]
         val1500 = day["val1500"]
@@ -681,12 +683,16 @@ def processFutureAnalyticsData():
 
 
         # special
-        _2100open = day["2100"]
-        _2100high = day["2100high"]
-        _2100low = day["2100low"]
+        # _2100open = day["2100"]
+        # _2100high = day["2100high"]
+        # _2100low = day["2100low"]
+        _2100open = 1
+        _2100high = 1
+        _2100low = 1
         percentBuffer = 0.0
         _monFriPerf = day["monFriPerf"]
-        va08xxHighTime = day["val08xxHigh_time"]
+        # va08xxHighTime = day["val08xxHigh_time"]
+        va08xxHighTime = 1
 
 
 
@@ -695,7 +701,7 @@ def processFutureAnalyticsData():
         df_result.at[i, "_openToHighEU"] = -round((openEU_0 - highEU_0) / openEU_0, 4)
         df_result.at[i, "_openToHigh"] = -round((openEU_0 - high_0) / openEU_0, 4)
         df_result.at[i, "_1000To2pm"] = -round((val1000 - val1400) / val1000, 4)
-        df_result.at[i, "_1000ToHigh"] = -round((val1000 - val10amTo10pmHigh) / val1000, 4)
+        df_result.at[i, "_1000ToHigh"] = -round((val1000 - val1000To2200High) / val1000, 4)
         df_result.at[i, "_openTo10am"] = -round((openEU_0 - val1000) / openEU_0, 4)
         df_result.at[i, "_openNextDayToHighNextDay"] = -round((openEU_plus1 - high_plus1) / openEU_plus1, 4)
         df_result.at[i, "_openNextDayToCloseNextDay"] = -round((openEU_plus1 - close_plus1) / openEU_plus1, 4)
@@ -717,6 +723,7 @@ def processFutureAnalyticsData():
         df_result.at[i, "_t-1_openToClose"] = -round((openEU_minus1 - close_minus1) / openEU_minus1, 4)
         df_result.at[i, "_t-1_closeTo10am"] = -round((close_minus1 - val1000) / close_minus1, 4)
         df_result.at[i, "_t-1_closeTo08xx"] = -round((close_minus1 - val08xx) / close_minus1, 4)
+        df_result.at[i, "_t-1_closeTo1500"] = -round((close_minus1 - val1500) / close_minus1, 4)
         df_result.at[i, "_t-1_closeToOpen"] = -round((close_minus1 - openEU_0) / close_minus1, 4)
         df_result.at[i, "_t-1_closeToHigh"] = -round((close_minus1 - high_0) / close_minus1, 4)
         df_result.at[i, "_t-1_closeToClose"] = -round((close_minus1 - close_0) / close_minus1, 4)
@@ -737,6 +744,7 @@ def processFutureAnalyticsData():
         df_result.at[i, "_08xxTo09xx"] = -round((val08xx - val09xx) / val08xx, 4)
         df_result.at[i, "_08xxTo09xxHigh"] = -round((val08xx - val08xx09xxHigh) / val08xx, 4)
         df_result.at[i, "_monFriPerf"] = _monFriPerf
+        df_result.at[i, "_1500To2200High"] = -round((val1500 - val1500To2200High) / val1500, 4)
 
         df_result.at[i, "dayOfWeek"] = day["date"].isocalendar()[2]
         df_result.at[i, "val08xxTo09xxHighTime"] = va08xxHighTime
@@ -748,16 +756,65 @@ def processFutureAnalyticsData():
 
         df_result.at[i, "bool_isHighEUTodayDay>=ClosePreviousDay"] = greaterEqual(highEU_0, close_minus1)
         df_result.at[i, "bool_isHighUSTodayDay>=ClosePreviousDay"] = greaterEqual(high_0, close_minus1)
-        df_result.at[i, "bool_is08xxValReachedBetweem10am10pm"] = greaterEqual(val10amTo10pmHigh, val08xx)
-        df_result.at[i, "bool_is08xxValReachedBetweem10am2pm"] = greaterEqual(val10amTo2pmHigh, val08xx)
-        df_result.at[i, "bool_isCloseValReachedBetween10am10pm"] = greaterEqual(val10amTo10pmHigh, close_minus1*(1-percentBuffer*0.01))
-        df_result.at[i, "bool_isCloseValReachedBetween10am2pm"] = greaterEqual(val10amTo2pmHigh, close_minus1*(1-percentBuffer*0.01))
+        df_result.at[i, "bool_is08xxValReachedBetweem10am10pm"] = greaterEqual(val1000To2200High, val08xx)
+        df_result.at[i, "bool_isCloseValReachedBetween10am10pm"] = greaterEqual(val1000To2200High, close_minus1*(1-percentBuffer*0.01))
+        df_result.at[i, "bool_isHigh15002200>=ClosePreviousDay"] = greaterEqual(val1500To2200High, close_minus1)
 
-    print("Writing to Excel")
-    with pd.ExcelWriter("C:/Users/FSX-P/Aktienanalyse/Indizes.xlsx", engine='openpyxl', mode='a', if_sheet_exists="replace") as writer:
-        df_result.to_excel(writer, sheet_name='NASDAQ_future_script', index=False)
+    print("[Saving to .csv]")
+    df_result.to_csv("C:/Users/FSX-P/Aktienanalyse/pay/nasdaq/nq_1h_result.csv", index=False, sep=";", decimal=",")
+
+def processPayData():
+    print("Loading dataframe")
+
+    df = pd.read_csv('C:/Users/FSX-P/Aktienanalyse/pay/nasdaq/nq_5m.csv', delimiter=';')
+    df.columns = ['Date', 'Time', 'Open', 'High', 'Low', 'Close', 'Volume']
+    df['Datetime'] = df['Date'] + ' ' + df['Time']
+    df['Datetime'] = pd.to_datetime(df['Datetime'], format='%d/%m/%Y %H:%M:%S')
+    df = df[["Datetime", "Open", "High", "Low", "Close", "Volume"]]
+
+    df_new = pd.DataFrame(columns=["Datetime", "Open", "High", "Low", "Close", "Volume"])
+
+    for i, fiveMinuteSlot in df.iterrows():
+
+        # only pay attention to full hours
+        if fiveMinuteSlot["Datetime"].time().minute != 0:
+            continue
+
+        dateTimeStart = fiveMinuteSlot["Datetime"]
+        dateTimeEnd = dateTimeStart + timedelta(minutes=55)
+
+        df_hour = df[(df['Datetime'] >= dateTimeStart) & (df['Datetime'] <= dateTimeEnd)]
+
+        open = df_hour.iloc[0, 1]
+        high = df_hour["High"].max()
+        low = df_hour["Low"].min()
+        close = df_hour.iloc[-1, 4]
+        volumeSum = df_hour["Volume"].sum()
+        datetime = df_hour.iloc[0, 0]
+
+        df_temp = pd.DataFrame({
+            "Datetime": [datetime],
+            "Open": [open],
+            "High": [high],
+            "Low": [low],
+            "Close": [close],
+            "Volume": [volumeSum]
+        })
+
+        df_new = pd.concat([df_new, df_temp], ignore_index=True)
+
+    df_new = df_new[df_new["Datetime"].dt.day_of_week != 6] # remove sundays
+    df_new["Datetime"] = df_new["Datetime"] + dt.timedelta(hours=1)
+    df_new = df_new.reset_index(drop=True)
+
+    print("Saving dataframe")
+    df_new.to_csv('C:/Users/FSX-P/Aktienanalyse/pay/nasdaq/nq_1h_processPayData.csv', index=False)
+
+    # holidays_datetime = [dt.datetime.strptime(date, '%Y-%m-%d') for date in holidaysUSA]
+    # df_5m = df_5m[~df_5m['Datetime'].dt.date.isin([holiday.date() for holiday in holidays_datetime])]
 
 if __name__ == "__main__":
     # downloadNasdaq_5m()
     # downloadNasdaq_1h()
     processFutureAnalyticsData()
+    # processPayData()

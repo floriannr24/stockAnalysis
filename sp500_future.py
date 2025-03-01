@@ -4,7 +4,7 @@ import yfinance as yf
 import pandas as pd
 
 from nasdaq_future import findOpenClose, findMaximumBetween0800_2200, findMaximumBetween0800_1400, \
-    findLowBetween0800_2200, findLowBetween0800_1400, findMaximumBetween1000_2200, findMaximumBetween1000_1400, \
+    findLowBetween0800_2200, findLowBetween0800_1400, findMaximumBetween1000_2200, findMaximumBetween1500_2200, \
     find1000And1400, find0900, find1500, find08xxAnd09xx, findMaximumBetween08xx_0959, findMondayToFridayPerformance, \
     findPositiveStreak, findNegativeStreak, nextWorkdayAfterDays, holidaysUSA
 
@@ -76,7 +76,7 @@ def processFutureAnalyticsData():
     df_lowFull = findLowBetween0800_2200(df_1h)
     df_lowEU = findLowBetween0800_1400(df_1h)
     df_10To10pmHigh = findMaximumBetween1000_2200(df_1h)
-    df_10To2pmHigh = findMaximumBetween1000_1400(df_1h)
+    df_10To2pmHigh = findMaximumBetween1500_2200(df_1h)
     df_10am2pm = find1000And1400(df_1h)
     df_9am = find0900(df_1h)
     df_3pm = find1500(df_1h)
