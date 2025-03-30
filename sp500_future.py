@@ -3,9 +3,9 @@ import datetime as dt
 import yfinance as yf
 import pandas as pd
 
-from nasdaq_future import findOpenClose, findMaximumBetween0800_2200, findMaximumBetween0800_1400, \
-    findLowBetween0800_2200, findLowBetween0800_1400, findMaximumBetween1000_2200, findMaximumBetween1500_2200, \
-    find1000And1400, find0900, find1500, find08xxAnd09xx, findMaximumBetween08xx_0959, findMondayToFridayPerformance, \
+from nasdaq_future import findOpen, findMaximumBetweenHours, findMaximumBetween0800_1400, \
+    findLowBetweenHours, findLowBetween0800_1400, findMaximumBetween1000_2200, findMaximumBetween1500_2200, \
+    findHour, find0900, find1500, find08xxAnd09xx, findMaximumBetween08xx_0959, findMondayToFridayPerformance, \
     findPositiveStreak, findNegativeStreak, nextWorkdayAfterDays, holidaysUSA
 
 
@@ -70,14 +70,14 @@ def downloadSP500_5m():
 def processFutureAnalyticsData():
     df_1h, df_5m = loadDataframes()
 
-    df_openClose = findOpenClose(df_1h)
-    df_highFull = findMaximumBetween0800_2200(df_1h)
+    df_openClose = findOpen(df_1h)
+    df_highFull = findMaximumBetweenHours(df_1h)
     df_highEU = findMaximumBetween0800_1400(df_1h)
-    df_lowFull = findLowBetween0800_2200(df_1h)
+    df_lowFull = findLowBetweenHours(df_1h)
     df_lowEU = findLowBetween0800_1400(df_1h)
     df_10To10pmHigh = findMaximumBetween1000_2200(df_1h)
     df_10To2pmHigh = findMaximumBetween1500_2200(df_1h)
-    df_10am2pm = find1000And1400(df_1h)
+    df_10am2pm = findHour(df_1h)
     df_9am = find0900(df_1h)
     df_3pm = find1500(df_1h)
     df_8am9am = find08xxAnd09xx(df_5m, 30, 55)
@@ -123,8 +123,10 @@ def processFutureAnalyticsData():
         val08xx = day["val08xx"]
         val09xx = day["val09xx"]
         val08xx09xxHigh = day["val08xx09xxHigh"]
-        val10amTo10pmHigh = day["val10amTo10pmHigh"]
-        val10amTo2pmHigh = day["val10amTo2pmHigh"]
+        # val10amTo10pmHigh = day["val10amTo10pmHigh"]
+        val10amTo10pmHigh = 1
+        # val10amTo2pmHigh = day["val10amTo2pmHigh"]
+        val10amTo2pmHigh = 1
         val0900 = day["val0900"]
         valCustom = day["valCustom"]
         val1500 = day["val1500"]
